@@ -1,4 +1,4 @@
-﻿import os
+import os
 import requests
 import sys
 
@@ -41,7 +41,7 @@ def update_dns(dns_name, target_ips):
 try:
     print("Fetching API 1 for md1...")
     resp1 = requests.get("https://ipdb.api.030101.xyz/?type=bestcf&country=true", timeout=15)
-    ips1 = [line.strip() for line in resp1.text.strip().split('\n') if line.strip()]
+    ips1 = [line.strip() for line in resp1.text.strip().split('\n') if line.strip()][:5]
     update_dns("md1.020021.qzz.io", ips1)
 except Exception as e:
     print(f"Error processing md1: {e}")
@@ -56,6 +56,7 @@ try:
             ip = line.split('#')[0].strip()
             if ip not in ips2:
                 ips2.append(ip)
+    ips2 = ips2[:5]
     update_dns("md2.020021.qzz.io", ips2)
 except Exception as e:
     print(f"Error processing md2: {e}")
