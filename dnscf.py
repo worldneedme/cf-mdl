@@ -4,69 +4,58 @@ import sys
 
 CF_API_TOKEN = os.environ.get("CF_API_TOKEN")
 CF_ZONE_ID = os.environ.get("CF_ZONE_ID")
-CF_DNS_NAME = os.environ.get("CF_DNS_NAME")
 
-if not all([CF_API_TOKEN, CF_ZONE_ID, CF_DNS_NAME]):
+if not all([CF_API_TOKEN, CF_ZONE_ID]):
     print("Missing Cloudflare credentials!")
     sys.exit(1)
 
-# 1. Fetch IPs
-try:
-    resp = requests.get("https://ip.v2too.top/api/nodes", timeout=10)
-    data = resp.json()
-    
-    # 2. Filter carrier == "cm" and sort by speed desc
-    cm_nodes = [n for n in data if n.get("carrier") == "cm"]
-    cm_nodes.sort(key=lambda x: x.get("speed", 0), reverse=True)
-    
-    # Take top 6
-    top_6 = cm_nodes[:6]
-    target_ips = [n.get("ip") for n in top_6 if n.get("ip")]
-    
-    print(f"Top 6 IPs: {target_ips}")
-    
-    if not target_ips:
-        print("No valid IPs found.")
-        sys.exit(1)
-        
-    # 3. Update Cloudflare
-    headers = {
-        "Authorization": f"Bearer {CF_API_TOKEN}",
-        "Content-Type": "application/json"
-    }
-    
-    # Get current records
-    list_url = f"https://api.cloudflare.com/client/v4/zones/{CF_ZONE_ID}/dns_records?type=A&name={CF_DNS_NAME}"
-    list_resp = requests.get(list_url, headers=headers).json()
-    
-    if not list_resp.get("success"):
-        print("Failed to fetch current DNS records.")
-        sys.exit(1)
-        
-    current_records = list_resp["result"]
-    
-    # Delete old records
-    for record in current_records:
-        rec_id = record["id"]
-        del_url = f"https://api.cloudflare.com/client/v4/zones/{CF_ZONE_ID}/dns_records/{rec_id}"
-        requests.delete(del_url, headers=headers)
-        print(f"Deleted old record: {record['content']}")
-        
-    # Create new records
-    for ip in target_ips:
-        create_url = f"https://api.cloudflare.com/client/v4/zones/{CF_ZONE_ID}/dns_records"
-        payload = {
-            "type": "A",
-            "name": CF_DNS_NAME,
-            "content": ip,
-            "ttl": 60,
-            "proxied": False
-        }
-        requests.post(create_url, headers=headers, json=payload)
-        print(f"Created new record for IP: {ip}")
-        
-    print("DNS Update Completed Successfully!")
+headers = {
+    "Authorization": f"Bearer {CF_API_TOKEN}",
+    "Content-Type": "application/json"
+}
 
+def update_dns(dns_name, target_ips):
+    if not target_ips:
+        print(f"No IPs to update for {dns_name}")
+        return
+    print(f"=== Updating {dns_name} with {len(target_ips)} IPs ===")
+    print(f"Target IPs: {target_ips}")
+    list_url = f"https://api.cloudflare.com/client/v4/zones/{CF_ZONE_ID}/dns_records?type=A&name={dns_name}"
+    list_resp = requests.get(list_url, headers=headers).json()
+    if list_resp.get("success"):
+        for record in list_resp["result"]:
+            requests.delete(f"https://api.cloudflare.com/client/v4/zones/{CF_ZONE_ID}/dns_records/{record['id']}", headers=headers)
+            print(f"Deleted old record: {record['content']}")
+    else:
+        print("Failed to fetch current DNS records.")
+        return
+
+    for ip in target_ips:
+        requests.post(f"https://api.cloudflare.com/client/v4/zones/{CF_ZONE_ID}/dns_records", headers=headers, json={
+            "type": "A", "name": dns_name, "content": ip, "ttl": 60, "proxied": False
+        })
+        print(f"Created new record for IP: {ip}")
+    print(f"Successfully updated {dns_name}\n")
+
+# --- md1.020021.qzz.io -> API 1 ---
+try:
+    print("Fetching API 1 for md1...")
+    resp1 = requests.get("https://ipdb.api.030101.xyz/?type=bestcf&country=true", timeout=15)
+    ips1 = [line.strip() for line in resp1.text.strip().split('\n') if line.strip()][:6]
+    update_dns("md1.020021.qzz.io", ips1)
 except Exception as e:
-    print(f"Error occurred: {e}")
-    sys.exit(1)
+    print(f"Error processing md1: {e}")
+
+# --- md2.020021.qzz.io -> API 2 (CM) ---
+try:
+    print("Fetching API 2 for md2...")
+    resp2 = requests.get("https://addressesapi.090227.xyz/CloudFlareYes", timeout=15)
+    ips2 = []
+    for line in resp2.text.strip().split('\n'):
+        if 'CM' in line:
+            ip = line.split('#')[0].strip()
+            ips2.append(ip)
+    ips2 = ips2[:6]
+    update_dns("md2.020021.qzz.io", ips2)
+except Exception as e:
+    print(f"Error processing md2: {e}")
