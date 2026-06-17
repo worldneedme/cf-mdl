@@ -37,25 +37,25 @@ def update_dns(dns_name, target_ips):
         print(f"Created new record for IP: {ip}")
     print(f"Successfully updated {dns_name}\n")
 
-# --- md1.020021.qzz.io -> API 1 ---
+# --- md1.020021.qzz.io -> API 1 (All IPs) ---
 try:
     print("Fetching API 1 for md1...")
     resp1 = requests.get("https://ipdb.api.030101.xyz/?type=bestcf&country=true", timeout=15)
-    ips1 = [line.strip() for line in resp1.text.strip().split('\n') if line.strip()][:6]
+    ips1 = [line.strip() for line in resp1.text.strip().split('\n') if line.strip()]
     update_dns("md1.020021.qzz.io", ips1)
 except Exception as e:
     print(f"Error processing md1: {e}")
 
-# --- md2.020021.qzz.io -> API 2 (CM) ---
+# --- md2.020021.qzz.io -> API 2 (All IPs) ---
 try:
     print("Fetching API 2 for md2...")
     resp2 = requests.get("https://addressesapi.090227.xyz/CloudFlareYes", timeout=15)
     ips2 = []
     for line in resp2.text.strip().split('\n'):
-        if 'CM' in line:
+        if line.strip():
             ip = line.split('#')[0].strip()
-            ips2.append(ip)
-    ips2 = ips2[:6]
+            if ip not in ips2:
+                ips2.append(ip)
     update_dns("md2.020021.qzz.io", ips2)
 except Exception as e:
     print(f"Error processing md2: {e}")
